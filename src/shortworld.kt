@@ -1,4 +1,84 @@
+import org.khronos.webgl.Float32Array
+import org.khronos.webgl.WebGLProgram
+import org.khronos.webgl.WebGLShader
+import org.khronos.webgl.WebGLRenderingContext as GL
+import org.w3c.dom.HTMLCanvasElement
+import kotlin.browser.document
+import kotlin.browser.window
+
 fun main(args: Array<String>) {
+    string_tests()
+
+    document.body!!.onload = {
+        val manager = Manager()
+        println("Initialized!")
+        window.requestAnimationFrame { manager.render() }
+    }
+}
+
+class Manager {
+    val canvas = document.getElementById("glCanvas") as HTMLCanvasElement
+    val gl = canvas.getContext("webgl") as GL
+    var program: WebGLProgram
+
+    init {
+        program = createProgram(fragmentShader, vertexShader)
+    }
+
+    fun render() {
+        val square_sides = Float32Array(
+                arrayOf( -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f,
+                        -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, -0.5f )
+        )
+        val vbuf = gl.createBuffer()
+        gl.bindBuffer(GL.ARRAY_BUFFER, vbuf)
+        gl.bufferData(GL.ARRAY_BUFFER, square_sides, GL.STATIC_DRAW)
+
+        gl.viewport(0, 0, canvas.width, canvas.height)
+        gl.clearColor(0f, 0f, 0f, 1f)
+        gl.clear(GL.COLOR_BUFFER_BIT)
+
+        gl.useProgram(program)
+        val uScalingFactor = gl.getUniformLocation(program, "uScalingFactor")
+        val uColor = gl.getUniformLocation(program, "uColor")
+        val uRotationVec = gl.getUniformLocation(program, "uRotationVec")
+
+        val ar: Float = (canvas.width/canvas.height).toFloat()
+
+        gl.uniform2fv(uScalingFactor, arrayOf(1.0f, ar))
+        gl.uniform2fv(uRotationVec, arrayOf(0f, 1f))
+        gl.uniform4fv(uColor, arrayOf(0.1f, 0.7f, 0.2f, 1f))
+
+        val aPos = gl.getAttribLocation(program, "aPos")
+        gl.enableVertexAttribArray(aPos)
+        gl.vertexAttribPointer(aPos, 2, GL.FLOAT, false, 0, 0)
+        gl.drawArrays(GL.TRIANGLES, 0, square_sides.length / 2)
+    }
+
+    fun createProgram(frag_code: String, vertex_code: String): WebGLProgram {
+        val prog = gl.createProgram()
+        val frag_shader = compileShader(frag_code, GL.FRAGMENT_SHADER)
+        gl.attachShader(prog, frag_shader)
+
+        val vshader = compileShader(vertex_code, GL.VERTEX_SHADER)
+        gl.attachShader(prog, vshader)
+
+        gl.linkProgram(prog)
+
+        return prog!!
+    }
+
+    fun compileShader(code: String, type: Int): WebGLShader {
+        val shader = gl.createShader(type)
+        gl.shaderSource(shader, code)
+        gl.compileShader(shader)
+
+        return shader!!
+    }
+
+}
+
+fun string_tests() {
     val msg = "Hello, world! We digress."
 
     println(msg)
@@ -28,3 +108,26 @@ fun String.derot(): String {
         byte.toChar()
     }.joinToString("")
 }
+
+private val fragmentShader = """
+precision highp float;
+
+uniform vec4 uColor;
+
+void main() {
+    gl_FragColor = uColor;
+}
+"""
+
+private val vertexShader = """
+attribute vec2 aPos;
+
+uniform vec2 uScalingFactor;
+uniform vec2 uRotationVec;
+
+void main() {
+    vec2 rotated = vec2(aPos.x * uRotationVec.y + aPos.y * uRotationVec.x,
+     aPos.y * uRotationVec.y - aPos.x * uRotationVec.x);
+    gl_Position = vec4(rotated * uScalingFactor, 0.0, 1.0);
+}
+"""
