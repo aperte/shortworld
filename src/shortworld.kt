@@ -8,8 +8,6 @@ import kotlin.browser.window
 import kotlin.random.Random
 
 fun main(args: Array<String>) {
-    string_tests()
-
     document.body!!.onload = {
         val manager = Manager()
         println("Initialized!")
@@ -28,8 +26,8 @@ class Manager {
 
     fun render() {
         val square_sides = Float32Array(
-                arrayOf( -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f,
-                        -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, -0.5f )
+                arrayOf( 0f, 1f, 1f, 1f, 1f, 0f,
+                        0f, 1f, 1f, 0f, 0f, 0f )
         )
         val vbuf = gl.createBuffer()
         gl.bindBuffer(GL.ARRAY_BUFFER, vbuf)
@@ -70,38 +68,6 @@ fun createProgram(gl: GL, frag_code: String, vertex_code: String): WebGLProgram 
     gl.linkProgram(prog)
 
     return prog!!
-}
-
-
-fun string_tests() {
-    val msg = "Hello, world! We digress."
-
-    println(msg)
-
-    println(msg.remake())
-
-    val rotted = msg.rot13()
-    println(rotted)
-    println(rotted.derot())
-}
-
-fun String.remake(): String {
-    val str = this.map { it.toByte().toChar() }
-    return str.joinToString("")
-}
-
-fun String.rot13(): String {
-    return this.map {
-        val byte: Byte = (it.toByte() + 13.toByte()).toByte()
-        byte.toChar()
-    }.joinToString ( "" )
-}
-
-fun String.derot(): String {
-    return this.map {
-        val byte: Byte = (it.toByte() - 13.toByte()).toByte()
-        byte.toChar()
-    }.joinToString("")
 }
 
 private val fragmentShader = """
