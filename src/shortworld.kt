@@ -59,14 +59,14 @@ fun renderSquare(gl: GL, program: WebGLProgram) {
 }
 
 fun renderCircle(gl: GL, program: WebGLProgram) {
-    val segments = 12
-    val scale = 0.5f
+    val segments = 36
+    val scale = 0.8f
     // +2 = start and end
     val cnt = (segments + 2) * 2
     val array = Float32Array(cnt)
     var index = 0
-    array[index++] = -1.0f * scale
-    array[index++] = -1.0f * scale
+    array[index++] = 0.0f * scale
+    array[index++] = 0.0f * scale
     (0..361)
             .filter { it % (360/segments) == 0 }
             .map { it.toFloat() }
