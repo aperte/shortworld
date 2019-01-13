@@ -1,10 +1,14 @@
 import org.khronos.webgl.Float32Array
 import org.khronos.webgl.WebGLProgram
 import org.khronos.webgl.WebGLShader
+import org.khronos.webgl.set
 import org.khronos.webgl.WebGLRenderingContext as GL
 import org.w3c.dom.HTMLCanvasElement
 import kotlin.browser.document
 import kotlin.browser.window
+import kotlin.math.cos
+import kotlin.math.PI
+import kotlin.math.sin
 import kotlin.random.Random
 
 fun main(args: Array<String>) {
@@ -25,28 +29,65 @@ class Manager {
     }
 
     fun render() {
-        val square_sides = Float32Array(
-                arrayOf( 0f, 1f, 1f, 1f, 1f, 0f,
-                        0f, 1f, 1f, 0f, 0f, 0f )
-        )
-        val vbuf = gl.createBuffer()
-        gl.bindBuffer(GL.ARRAY_BUFFER, vbuf)
-        gl.bufferData(GL.ARRAY_BUFFER, square_sides, GL.STATIC_DRAW)
-
         gl.viewport(0, 0, canvas.width, canvas.height)
         gl.clearColor(0f, 0f, 0f, 1f)
         gl.clear(GL.COLOR_BUFFER_BIT)
 
-        gl.useProgram(program)
-        val uColor = gl.getUniformLocation(program, "uColor")
-
-        gl.uniform4fv(uColor, arrayOf(0.1f, 0.7f, 0.2f, 1f))
-
-        val aPos = gl.getAttribLocation(program, "aPos")
-        gl.enableVertexAttribArray(aPos)
-        gl.vertexAttribPointer(aPos, 2, GL.FLOAT, false, 0, 0)
-        gl.drawArrays(GL.TRIANGLES, 0, square_sides.length / 2)
+        renderCircle(gl, program)
+        renderSquare(gl, program)
     }
+}
+
+fun renderSquare(gl: GL, program: WebGLProgram) {
+    val square_sides = Float32Array(
+            arrayOf( 0f, 1f, 1f, 1f, 1f, 0f,
+                    0f, 1f, 1f, 0f, 0f, 0f )
+    )
+    val vbuf = gl.createBuffer()
+    gl.bindBuffer(GL.ARRAY_BUFFER, vbuf)
+    gl.bufferData(GL.ARRAY_BUFFER, square_sides, GL.STATIC_DRAW)
+
+    gl.useProgram(program)
+    val uColor = gl.getUniformLocation(program, "uColor")
+
+    gl.uniform4fv(uColor, arrayOf(1.0f, 1.0f, 0.2f, 1f))
+
+    val aPos = gl.getAttribLocation(program, "aPos")
+    gl.enableVertexAttribArray(aPos)
+    gl.vertexAttribPointer(aPos, 2, GL.FLOAT, false, 0, 0)
+    gl.drawArrays(GL.TRIANGLES, 0, square_sides.length / 2)
+}
+
+fun renderCircle(gl: GL, program: WebGLProgram) {
+    val segments = 12
+    val scale = 0.5f
+    // +2 = start and end
+    val cnt = (segments + 2) * 2
+    val array = Float32Array(cnt)
+    var index = 0
+    array[index++] = -1.0f * scale
+    array[index++] = -1.0f * scale
+    (0..361)
+            .filter { it % (360/segments) == 0 }
+            .map { it.toFloat() }
+            .forEach {
+                val rad: Float = it * (PI.toFloat() / 180)
+                array[index++] = cos(rad) * scale
+                array[index++] = sin(rad) * scale
+            }
+    val vbuf = gl.createBuffer()
+    gl.bindBuffer(GL.ARRAY_BUFFER, vbuf)
+    gl.bufferData(GL.ARRAY_BUFFER, array.also(::println), GL.STATIC_DRAW)
+
+    gl.useProgram(program)
+    val uColor = gl.getUniformLocation(program, "uColor")
+
+    gl.uniform4fv(uColor, arrayOf(0.7f, 0.7f, 0.2f, 1f))
+
+    val aPos = gl.getAttribLocation(program, "aPos")
+    gl.enableVertexAttribArray(aPos)
+    gl.vertexAttribPointer(aPos, 2, GL.FLOAT, false, 0, 0)
+    gl.drawArrays(GL.TRIANGLE_FAN, 0, array.length / 2)
 }
 
 fun compileShader(gl: GL, code: String, type: Int): WebGLShader {
