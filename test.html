@@ -4,13 +4,38 @@
         <meta charset="UTF-8">
         <style>
             * {
-            margin: 0;
+                margin: 0;
+                padding: 0;
+                border: 0;
+            }
+
+            canvas {
+                width: 80%;
+                height: 100%;
+                display: block;
+                float: right;
+            }
+
+            #container {
+                width: 20%;
+                height: 100%;
+                display: block;
+                font: 12px sans-serif;
+            }
+
+            ul {
+                list-style-type: none;
+                padding: 2px;
             }
         </style>
     </head>
     <body>
         <script type="text/javascript" src="out/production/shortworld/lib/kotlin.js"></script>
         <script type="text/javascript" src="out/production/shortworld/shortworld.js"></script>
-        <canvas id="glCanvas" style="width: 95%; height: 95%;"></canvas>
+        <canvas id="glCanvas"></canvas>
+        <div id="container">
+            <ul id="entries">
+            </ul>
+        </div>
     </body>
 </html>
