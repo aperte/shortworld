@@ -140,7 +140,7 @@ class Circle(val gl: GL, val program: WebGLProgram, radius: Float, segments: Int
                 (0..361)
                         .filter { it % (360 / segmentsActual) == 0 }
                         .map {
-                            val rad: Float = it.toFloat() * (PI.toFloat() / 180)
+                            val rad = it.toFloat() * (PI.toFloat() / 180)
                             Vertex(cos(rad) * radius, sin(rad) * radius)
                         }
         bufname = gl.createBuffer()!!
