@@ -77,6 +77,7 @@ class Mouse(val canvas: HTMLCanvasElement) {
     val buttonStates = Array(3) { MouseState.UP }
     val buttonLastDown = Array(3) { Point(0f, 0f) }
     val onDrag: Array<MutableList<(Point, Point) -> Unit>> = Array(3) { mutableListOf<(Point, Point) -> Unit>() }
+    val onClick: Array<MutableList<(Point) -> Unit>> = Array(3) { mutableListOf<(Point) -> Unit>() }
 
     fun translate(code: Int): Int? = when (code) {
         // Translate MouseEvent.button into internal MouseButton
@@ -112,6 +113,13 @@ class Mouse(val canvas: HTMLCanvasElement) {
         when (mevent.type) {
             "mousedown" -> ondown(button, point)
             "mouseup" -> onup(button, point)
+            "click" -> onclick(button, point)
+        }
+    }
+
+    fun onclick(button: Int, at: Point) {
+        for (fn in onClick[button]) {
+            fn(at)
         }
     }
 
@@ -125,6 +133,65 @@ class Mouse(val canvas: HTMLCanvasElement) {
 
     fun addDragHandler(button: MouseButton, handler: (Point, Point) -> Unit) {
         onDrag[button.idx].add(handler)
+    }
+
+    fun addClickHandler(button: MouseButton, handler: (Point) -> Unit) {
+        onClick[button.idx].add(handler)
+    }
+}
+
+class Rect(val x: Float, val y: Float, val w: Float, val h: Float,
+           gl: GL, program: WebGLProgram): PrimitiveRenderable(gl) {
+    override val attribBuffer: WebGLBuffer
+    override val attribLocation: Int
+    override val vertices: Int
+    override val drawType = GL.TRIANGLES
+
+    init {
+        val array = listOf(
+                Vertex(x, y),
+                Vertex(x + w, y),
+                Vertex(x + w, y + h),
+                Vertex(x, y),
+                Vertex(x, y + h),
+                Vertex(x + w, y + h)
+        )
+        attribBuffer = gl.createBuffer()!!
+        gl.bindBuffer(GL.ARRAY_BUFFER, attribBuffer)
+        gl.bufferData(GL.ARRAY_BUFFER, array.asArray(), GL.STATIC_DRAW)
+        vertices = array.size
+        attribLocation = gl.getAttribLocation(program, "aVal")
+    }
+}
+
+// Renderable draft
+// Only supports the basic vertex and no special handling of buffer
+abstract class PrimitiveRenderable(val gl: GL) {
+    abstract val attribBuffer: WebGLBuffer
+    abstract val attribLocation: Int
+    abstract val vertices: Int
+    abstract val drawType: Int
+
+    fun draw() {
+        gl.bindBuffer(GL.ARRAY_BUFFER, attribBuffer)
+        gl.enableVertexAttribArray(attribLocation)
+        gl.vertexAttribPointer(attribLocation, 2, GL.FLOAT, false, 0, 0)
+        gl.drawArrays(drawType, 0, vertices)
+    }
+
+    var deleted: Boolean = false
+
+    fun render() {
+        if (deleted) {
+            throw IllegalStateException("use after delete")
+        } else {
+            draw()
+        }
+    }
+
+    fun delete() {
+        deleted = true
+        gl.deleteBuffer(attribBuffer)
     }
 }
 
@@ -161,12 +228,13 @@ class Manager {
     var program: WebGLProgram
     val elements: MutableList<Circle> = mutableListOf()
     val lines: MutableList<Line> = mutableListOf()
+    val generic_elements: MutableList<Rect> = mutableListOf()
 
     var mouse = Mouse(canvas)
 
     init {
         program = createProgram(gl, fragmentShader, vertexShaderMat)
-        canvas.addEventListener("click", ::click_handler)
+        canvas.addEventListener("click", ::mouseEventHandler)
         canvas.addEventListener("keydown", ::keydown_handler)
         canvas.addEventListener("mousedown", ::mouseEventHandler)
         canvas.addEventListener("mouseup", ::mouseEventHandler)
@@ -181,24 +249,19 @@ class Manager {
             println("start=$from, now=$to, diff=$diff")
             lines.add(Line(from, to, gl, program))
         }
+        mouse.addClickHandler(MouseButton.M1) {
+            val newRect = Rect(it.x, it.y, 10f, 10f, gl, program)
+            generic_elements.add(newRect)
+        }
+
+        mouse.addClickHandler(MouseButton.M1) {
+            elements.add(Circle(gl, program, 2f, 36, it.x, it.y))
+        }
     }
 
     fun mouseEventHandler(event: Event) {
         mouse.mevent(event)
         println("EVENT: ${event.type}")
-    }
-
-    fun click_handler(event: Event) {
-        val mevent = event as MouseEvent
-        val offsetLeft = canvas.offsetLeft
-        val offsetTop = canvas.offsetTop
-        val clientX = mevent.clientX - offsetLeft
-        val clientY = mevent.clientY - offsetTop
-        println("clientX=${clientX}")
-        println("clientY=${clientY}")
-
-        val new_circle = Circle(gl, program, 50f, 36, offsetX = clientX.toFloat(), offsetY = clientY.toFloat())
-        elements.add(new_circle)
     }
 
     fun keydown_handler(event: Event) {
@@ -319,6 +382,9 @@ class Manager {
         }
         for (line in lines) {
             line.render()
+        }
+        for (gen in generic_elements) {
+            gen.render()
         }
         renderSquare(gl, program)
     }
