@@ -3,7 +3,6 @@ import org.khronos.webgl.*
 import org.khronos.webgl.WebGLRenderingContext as GL
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.HTMLLIElement
-import org.w3c.dom.HTMLOListElement
 import org.w3c.dom.HTMLUListElement
 import org.w3c.dom.events.Event
 import org.w3c.dom.events.KeyboardEvent
@@ -13,13 +12,13 @@ import kotlin.browser.window
 import kotlin.js.Date.Companion.now
 import kotlin.math.cos
 import kotlin.math.PI
-import kotlin.math.max
+import kotlin.math.abs
 import kotlin.math.sin
 
 fun main(args: Array<String>) {
     document.body!!.onload = {
         val manager = Manager()
-        println("Initialized!")
+        println("shortworld!")
         window.requestAnimationFrame { manager.driver() }
     }
 }
@@ -54,6 +53,106 @@ class PropertyTracker(val id: String, val updater: () -> String, owner: HTMLULis
     }
 }
 
+data class Point(val x: Float, val y: Float)
+
+operator fun Point.minus(other: Point): Point {
+    return Point(
+        this.x - other.x,
+        this.y - other.y
+    )
+}
+
+enum class MouseState {
+    DOWN, UP
+}
+
+enum class MouseButton(val idx: Int) {
+    M1(0),
+    M2(1),
+    M3(2)
+}
+
+class Mouse(val canvas: HTMLCanvasElement) {
+    val pointerAt = Point(0f, 0f)
+    val buttonStates = Array(3) { MouseState.UP }
+    val buttonLastDown = Array(3) { Point(0f, 0f) }
+    val onDrag: Array<MutableList<(Point, Point) -> Unit>> = Array(3) { mutableListOf<(Point, Point) -> Unit>() }
+
+    fun translate(code: Int): Int? = when (code) {
+        // Translate MouseEvent.button into internal MouseButton
+        0 -> MouseButton.M1.idx
+        1 -> MouseButton.M3.idx
+        2 -> MouseButton.M2.idx
+        else -> {
+            println("unrecognized code: $code")
+            null
+        }
+    }
+
+    fun ondown(button: Int, at: Point) {
+        buttonLastDown[button] = at
+        buttonStates[button] = MouseState.DOWN
+    }
+
+    fun onup(button: Int, at: Point) {
+        val old = buttonLastDown[button]
+        val diff = at - old
+        if (abs(diff.x) > 0 || abs(diff.y) > 0) {
+            for (fn in onDrag[button]) {
+                fn(old, at)
+            }
+        }
+        buttonStates[button] = MouseState.DOWN
+    }
+
+    fun mevent(event: Event) {
+        val mevent = event as MouseEvent
+        val button = translate(mevent.button.toInt())!!
+        val point = getPoint(mevent)
+        when (mevent.type) {
+            "mousedown" -> ondown(button, point)
+            "mouseup" -> onup(button, point)
+        }
+    }
+
+    fun getPoint(mevent: MouseEvent): Point {
+        val offsetLeft = canvas.offsetLeft
+        val offsetTop = canvas.offsetTop
+        val clientX = mevent.clientX - offsetLeft
+        val clientY = mevent.clientY - offsetTop
+        return Point(clientX.toFloat(), clientY.toFloat())
+    }
+
+    fun addDragHandler(button: MouseButton, handler: (Point, Point) -> Unit) {
+        onDrag[button.idx].add(handler)
+    }
+}
+
+class Line(from: Point, to: Point, val gl: GL, program: WebGLProgram) {
+    val attribBuffer: WebGLBuffer
+    val vertices: Int
+    val attribLocation: Int
+
+    init {
+        attribBuffer = gl.createBuffer()!!
+        val array = listOf(
+                Vertex(from.x, from.y),
+                Vertex(to.x, to.y)
+                )
+        gl.bindBuffer(GL.ARRAY_BUFFER, attribBuffer)
+        gl.bufferData(GL.ARRAY_BUFFER, array.asArray(), GL.STATIC_DRAW)
+        vertices = array.size
+        attribLocation = gl.getAttribLocation(program, "aVal")
+    }
+
+    fun render() {
+        gl.bindBuffer(GL.ARRAY_BUFFER, attribBuffer)
+        gl.enableVertexAttribArray(attribLocation)
+        gl.vertexAttribPointer(attribLocation, 2, GL.FLOAT, false, 0, 0)
+        gl.drawArrays(GL.LINES, 0, vertices)
+    }
+}
+
 class Manager {
     val canvas = document.getElementById("glCanvas") as HTMLCanvasElement
     val gl = canvas.getContext("webgl") as GL
@@ -61,16 +160,31 @@ class Manager {
     val properties: MutableList<PropertyTracker> = mutableListOf()
     var program: WebGLProgram
     val elements: MutableList<Circle> = mutableListOf()
+    val lines: MutableList<Line> = mutableListOf()
+
+    var mouse = Mouse(canvas)
 
     init {
         program = createProgram(gl, fragmentShader, vertexShaderMat)
         canvas.addEventListener("click", ::click_handler)
         canvas.addEventListener("keydown", ::keydown_handler)
+        canvas.addEventListener("mousedown", ::mouseEventHandler)
+        canvas.addEventListener("mouseup", ::mouseEventHandler)
         canvas.setAttribute("tabindex", "0")
         canvas.focus()
+
+        val maxViewportDims = gl.getParameter(GL.MAX_VIEWPORT_DIMS)
+        console.log(maxViewportDims)
+
+        mouse.addDragHandler(MouseButton.M1) { from, to ->
+            val diff = from - to
+            println("start=$from, now=$to, diff=$diff")
+            lines.add(Line(from, to, gl, program))
+        }
     }
 
-    fun eventHandler(event: Event) {
+    fun mouseEventHandler(event: Event) {
+        mouse.mevent(event)
         println("EVENT: ${event.type}")
     }
 
@@ -202,6 +316,9 @@ class Manager {
         circle.render()
         for (ele in elements) {
             ele.render()
+        }
+        for (line in lines) {
+            line.render()
         }
         renderSquare(gl, program)
     }
